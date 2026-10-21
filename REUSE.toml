@@ -1,0 +1,10 @@
+version = 1
+SPDX-PackageName = "integration-tests"
+SPDX-PackageSupplier = "CERN for the benefit of the SHiP Collaboration"
+SPDX-PackageDownloadLocation = "https://github.com/ShipSoft/integration-tests"
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "CERN for the benefit of the SHiP Collaboration"
+SPDX-License-Identifier = "LGPL-3.0-or-later"

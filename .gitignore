@@ -1,0 +1,9 @@
+.pixi/
+chain-output/
+*.root
+*.db
+__pycache__/
+*.pyc
+.claude/
+CLAUDE.md
+.*.sw*
