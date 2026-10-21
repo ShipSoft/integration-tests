@@ -12,6 +12,9 @@
 # Settings, from the environment:
 #   EVENTS          events to simulate (default 20)
 #   SEED            seed for the gun, Geant4 and digitisation (default 42)
+#   POT             protons on target Shannon assumes per spill; its time
+#                   offset is drawn from [0, 1.2e9 ns * POT / 4e13) (default
+#                   1e7, i.e. 0 to 300 ns)
 #   P_MIN, P_MAX    gun momentum range in GeV/c (default 10, 50)
 #   MAX_THETA       gun opening angle in rad (default 0.01)
 #   VERTEX_Z        gun vertex in mm, upstream of the upstream tagger (default 30000)
@@ -32,6 +35,7 @@ out=$(mkdir -p "${1:-chain-output}" && cd "${1:-chain-output}" && pwd)
 : "${CONDA_PREFIX:?run inside the pixi environment (pixi run chain)}"
 EVENTS=${EVENTS:-20}
 SEED=${SEED:-42}
+POT=${POT:-1e7}
 P_MIN=${P_MIN:-10}
 P_MAX=${P_MAX:-50}
 MAX_THETA=${MAX_THETA:-0.01}
@@ -72,7 +76,7 @@ jsonnet -J "$AEGIR_WORKFLOWS" -J "$field_lib" \
     "$here/workflows/sim.jsonnet" >"$out/sim.json"
 stage sim "${AEGIR_RUN:-}"
 
-jsonnet --ext-str spills="$EVENTS" --ext-str seed="$SEED" \
+jsonnet --ext-str spills="$EVENTS" --ext-str seed="$SEED" --ext-str pot="$POT" \
     --ext-str input_file=sim.root \
     --ext-str rntuple_file=digi.root --ext-str histo_file=digi_validation.root \
     "$here/workflows/digi.jsonnet" >"$out/digi.json"
