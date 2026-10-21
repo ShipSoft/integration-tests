@@ -1,0 +1,59 @@
+[workspace]
+name = "integration-tests"
+description = "Cross-repo integration tests for the SHiP software chain (aegir, Shannon, Trout)"
+channels = ["https://prefix.dev/ship-experiment/stable", "conda-forge"]
+platforms = ["linux-64"]
+requires-pixi = ">=0.68"
+
+[dependencies]
+aegir = "*"
+shannon = "*"
+trout = "*"
+shipgeometry = "*"
+field-service-tools = "*"
+ship-field-maps = "*"
+phlex = "*"
+jsonnet = "*"
+python = ">=3.11"
+root = "*"
+numpy = "*"
+
+[activation]
+scripts = ["activate.sh"]
+
+[tasks]
+chain = "scripts/run_chain.sh chain-output"
+# Trout cannot yet reconstruct real straw-tube hits (its seeding assumes all
+# hits of a track have the same time, and its placeholder hit errors leave
+# the momentum unmeasured), so the track checks only report for now. Switch
+# to --tracking require once Trout handles them.
+validate = "python scripts/validate_chain.py chain-output --tracking report"
+test = { depends-on = ["chain", "validate"] }
+
+# Linting / formatting toolchain. prek orchestrates the hooks; the tools come
+# from this environment so versions are tracked in pixi.lock.
+[feature.lint.dependencies]
+prek = "*"
+python = ">=3.11"
+shellcheck = "*"
+ruff = "*"
+go-jsonnet = "*"
+codespell = "*"
+reuse = "*"
+commitizen = "*"
+
+[feature.lint.tasks]
+lint = "prek run --all-files"
+# Install the git hooks and route them through `pixi run` so the
+# conda-provided hook tools are on PATH at commit time (required on NixOS,
+# where the tools are not runnable without pixi activation).
+install-hooks = '''
+prek install --hook-type pre-commit --hook-type commit-msg
+hooks=$(git rev-parse --git-path hooks)
+sed -i 's#"$PREK" hook-impl#pixi run -e lint prek hook-impl#' "$hooks/pre-commit"
+sed -i 's#"$PREK" hook-impl#pixi run -e lint prek hook-impl#' "$hooks/commit-msg"
+'''
+
+[environments]
+default = { solve-group = "default" }
+lint = { features = ["lint"], no-default-feature = true }
