@@ -27,6 +27,26 @@ pixi run validate    # only check chain-output/
 rendered configuration and log are kept in `chain-output/` next to its
 output.
 
+### Against local checkouts
+
+To run your branches of aegir, Shannon or Trout in the chain, build each
+checkout in its own environment and point the chain at it. With the
+repositories side by side:
+
+```sh
+for repo in aegir Shannon Trout; do pixi run --manifest-path ../$repo/pixi.toml install; done
+DETECTOR_IDS=explicit \
+AEGIR_RUN="pixi run --manifest-path $PWD/../aegir/pixi.toml" \
+SHANNON_RUN="pixi run --manifest-path $PWD/../Shannon/pixi.toml" \
+TROUT_RUN="pixi run --manifest-path $PWD/../Trout/pixi.toml" \
+AEGIR_WORKFLOWS=$PWD/../aegir/workflows \
+TROUT_WORKFLOWS=$PWD/../Trout/workflows \
+pixi run test
+```
+
+Leave out any of the `*_RUN` variables to use the released package for
+that stage instead. `DETECTOR_IDS=explicit` needs an aegir newer than 0.5.
+
 ## What is checked
 
 `scripts/validate_chain.py` checks, per stage:
@@ -42,7 +62,8 @@ output.
   muons with hits in all four straw stations have a track, and for at least
   90% of the muons that have one, the assigned track's momentum is within
   10% of the truth. Muons without a track count only against the first
-  threshold. Thresholds are constants at the top of `check_tracks`.
+  threshold. Thresholds are constants just above `truth_muons` in the same
+  script.
 
 ## Known problems
 
@@ -51,14 +72,17 @@ prints them as known failures without failing the job:
 
 - Trout 0.3.1 seeds only hit pairs whose times differ by less than 5 ns,
   but real hits in stations 1 and 2 are at least 6.7 ns apart (time of
-  flight over 2 m), so no track is found.
+  flight over 2 m), so no track is found
+  ([Trout#46](https://github.com/ShipSoft/Trout/issues/46)).
 - With the times corrected by hand, Trout finds every muon, but it pairs
-  every station-1 hit with every station-2 hit and keeps the duplicates, and
-  its placeholder 100 mm hit uncertainty leaves the momentum unmeasured.
+  every station-1 hit with every station-2 hit and keeps the duplicates
+  ([Trout#47](https://github.com/ShipSoft/Trout/issues/47)), and its
+  placeholder 100 mm hit uncertainty leaves the momentum unmeasured
+  ([Trout#48](https://github.com/ShipSoft/Trout/issues/48)).
 
 Shannon's output has no spill boundaries and Trout hands the whole input
 file to every spill, so the chain reconstructs all events as a single
-spill.
+spill ([Shannon#51](https://github.com/ShipSoft/Shannon/issues/51)).
 
 Change the `validate` task to `--tracking require` once Trout reconstructs
 real straw-tube hits.
