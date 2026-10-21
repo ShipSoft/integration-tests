@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
+# Run the chain on the main branches of aegir, Shannon and Trout, each built
+# in its own pixi environment, to catch interface breakage before a release.
+# Advisory: not a required check. The track checks are required here, so
+# this job stays red until Trout reconstructs real straw-tube hits.
+name: "Advisory: chain on mains"
+on:
+  schedule:
+    # After ship-conda-recipes' nightly library builds (02:30).
+    - cron: 30 3 * * *
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: chain-mains
+  cancel-in-progress: true
+jobs:
+  chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: ShipSoft/aegir
+          path: mains/aegir
+      - uses: actions/checkout@v7
+        with:
+          repository: ShipSoft/Shannon
+          path: mains/Shannon
+      - uses: actions/checkout@v7
+        with:
+          repository: ShipSoft/Trout
+          path: mains/Trout
+      - uses: prefix-dev/setup-pixi@v0.11.2
+        with:
+          cache: true
+      - name: Build aegir, Shannon and Trout
+        run: |
+          set -euo pipefail
+          for repo in aegir Shannon Trout; do
+            echo "::group::$repo $(git -C mains/$repo rev-parse --short HEAD)"
+            pixi run --manifest-path mains/$repo/pixi.toml install </dev/null
+            echo "::endgroup::"
+          done
+      - name: Run the chain
+        env:
+          DETECTOR_IDS: explicit
+          AEGIR_RUN: pixi run --manifest-path ${{ github.workspace }}/mains/aegir/pixi.toml
+          SHANNON_RUN: pixi run --manifest-path ${{ github.workspace }}/mains/Shannon/pixi.toml
+          TROUT_RUN: pixi run --manifest-path ${{ github.workspace }}/mains/Trout/pixi.toml
+          AEGIR_WORKFLOWS: ${{ github.workspace }}/mains/aegir/workflows
+          TROUT_WORKFLOWS: ${{ github.workspace }}/mains/Trout/workflows
+        run: pixi run --locked chain
+      - name: Validate
+        run: pixi run --locked python scripts/validate_chain.py chain-output --tracking require
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: chain-mains-logs
+          path: |
+            chain-output/*.log
+            chain-output/*.json
+          if-no-files-found: ignore
