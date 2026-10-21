@@ -8,7 +8,8 @@
 aegir:   one entry per simulated event, hits only with SHiP detector ids,
          and hits in the detectors a forward muon crosses.
 Shannon: one collection per detector, each holding the hits aegir gave
-         that detector, plus the simulation truth passed through.
+         that detector, shifted in time by the per-spill offset, plus the
+         simulation truth passed through.
 Trout:   every reconstruction output present, the per-detector collections
          carrying Shannon's hits, and spectrometer tracks matching the
          generated muons (see check_tracks).
@@ -89,6 +90,53 @@ def check_sim(c, path, events):
     n_particles = ROOT.RDataFrame("events", path).Define(
         "n", "sim_particles.track_id.size()").Sum("n").GetValue()
     return counts, int(n_particles)
+
+
+# Shannon draws each spill's time offset from [0, window), with
+# window = SPILL_TIME_NS * pot / NOMINAL_POT_PER_SPILL (digitise_hits.cpp).
+SPILL_TIME_NS = 1.2e9
+NOMINAL_POT_PER_SPILL = 4e13
+# The mean offset of a collection must be at least this large. Shannon's
+# default pot gives a window of only 0.3 ns.
+MIN_MEAN_OFFSET_NS = 1.0
+
+
+def mean_time(path, ntuple, column):
+    """Mean of `column` over all entries, or None for an empty RNTuple."""
+    if not entries(path, ntuple):
+        return None
+    return ROOT.RDataFrame(ntuple, path).Mean(column).GetValue()
+
+
+def sim_mean_times(path):
+    """Mean sim-hit time per detector id in aegir's `events` RNTuple."""
+    df = (ROOT.RDataFrame("events", path)
+          .Define("ids", "ROOT::RVecI(sim_hits.detector_id)")
+          .Define("times", "ROOT::RVecD(sim_hits.time)"))
+    d = df.AsNumpy(["ids", "times"])
+    ids = np.concatenate([np.asarray(v, dtype=int) for v in d["ids"]] or [[]])
+    times = np.concatenate([np.asarray(v, dtype=float) for v in d["times"]] or [[]])
+    return {det_id: float(times[ids == det_id].mean()) for det_id in np.unique(ids).tolist()}
+
+
+def check_time_offsets(c, digi_path, sim_path, pot):
+    """Check that Shannon shifted each collection by its spill offsets.
+
+    Shannon's output has no spill boundaries, so this compares means: the
+    mean digitised time minus the mean simulated time of a detector is a
+    weighted mean of the spill offsets, and must lie within the window.
+    """
+    window = SPILL_TIME_NS * pot / NOMINAL_POT_PER_SPILL
+    sim_means = sim_mean_times(sim_path)
+    for det_id, (_, ntuple, _) in DETECTORS.items():
+        digi_mean = mean_time(digi_path, ntuple, "hit.rec_hit.time")
+        if digi_mean is None or det_id not in sim_means:
+            continue
+        offset = digi_mean - sim_means[det_id]
+        print(f"  {ntuple}: mean time offset {offset:.2f} ns (window {window:.1f} ns)")
+        c.expect(MIN_MEAN_OFFSET_NS <= offset < window,
+                 f"Shannon: mean time offset {offset:.3f} ns in '{ntuple}', expected "
+                 f"{MIN_MEAN_OFFSET_NS} ns to {window:.1f} ns for pot {pot:g}")
 
 
 def check_digi(c, path, sim_counts, sim_particles):
@@ -252,6 +300,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("output_dir", nargs="?", default="chain-output")
     parser.add_argument("--events", type=int, default=int(os.environ.get("EVENTS", "20")))
+    parser.add_argument("--pot", type=float, default=float(os.environ.get("POT", "1e7")),
+                        help="the pot Shannon ran with (default: $POT or 1e7)")
     parser.add_argument("--tracking", choices=["require", "report"], default="require",
                         help="whether failed track checks fail the run (default: require)")
     args = parser.parse_args()
@@ -262,6 +312,7 @@ def main():
     c = Checks()
     sim_counts, sim_particles = check_sim(c, out("sim.root"), args.events)
     digi_counts = check_digi(c, out("digi.root"), sim_counts, sim_particles)
+    check_time_offsets(c, out("digi.root"), out("sim.root"), args.pot)
     check_reco(c, out("reco.root"), out("reco_validation.root"), out("digi.root"), digi_counts)
     tracking = Checks()
     check_tracks(tracking, out("reco.root"), out("sim.root"))

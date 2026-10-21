@@ -4,7 +4,8 @@
 //
 // Stage 2 of the chain: Shannon digitises the hits of the aegir output.
 // Each aegir event becomes one spill, so `spills` must equal the number of
-// simulated events (read_sim_file reads entry i for spill i).
+// simulated events (read_sim_file reads entry i for spill i). `pot` sets the
+// window of Shannon's per-spill time offset: 1.2e9 ns * pot / 4e13.
 local ext(name) = std.extVar(name);
 
 {
@@ -30,6 +31,7 @@ local ext(name) = std.extVar(name);
       cpp: 'digitise_hits',
       layer: 'spill',
       seed: std.parseInt(ext('seed')),
+      pot: std.parseJson(ext('pot')),
     },
     digitised_output: {
       cpp: 'digitised_output_module',

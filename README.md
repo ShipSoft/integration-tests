@@ -54,8 +54,9 @@ that stage instead. `DETECTOR_IDS=explicit` needs an aegir newer than 0.5.
 - aegir writes one entry per event, only SHiP detector ids (0 to 4), and
   hits in the upstream tagger, straw tubes, calorimeter and timing detector.
 - Shannon writes each detector's hits to that detector's collection, no
-  more hits than aegir simulated, and passes the simulation truth through
-  unchanged.
+  more hits than aegir simulated, shifts them by its per-spill time offset
+  (`POT`, default 1e7, sets the window to 0 to 300 ns), and passes the
+  simulation truth through unchanged.
 - Trout writes every reconstruction output and carries Shannon's hits into
   its per-detector collections.
 - Trout's spectrometer tracks match the gun muons: at least 90% of the
@@ -70,8 +71,10 @@ prints them as known failures without failing the job:
 
 - Trout 0.3.1 seeds only hit pairs whose times differ by less than 5 ns,
   but real hits in stations 1 and 2 are at least 6.7 ns apart (time of
-  flight over 2 m), so no track is found
-  ([Trout#46](https://github.com/ShipSoft/Trout/issues/46)).
+  flight over 2 m), so no muon gets a track
+  ([Trout#46](https://github.com/ShipSoft/Trout/issues/46)). The tracks it
+  does find pair hits of different events whose time offsets happen to
+  line up.
 - With the times corrected by hand, Trout finds every muon, but it pairs
   every station-1 hit with every station-2 hit and keeps the duplicates
   ([Trout#47](https://github.com/ShipSoft/Trout/issues/47)), and its
