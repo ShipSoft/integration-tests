@@ -9,7 +9,8 @@
 name: "Advisory: chain on mains"
 on:
   schedule:
-    # After ship-conda-recipes' nightly library builds (02:30).
+    # Nightly. The libraries come from the stable channel, not from
+    # ship-conda-recipes' nightly builds of their main branches.
     - cron: 30 3 * * *
   workflow_dispatch:
 permissions:
